@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>心灵荒野 · Wilderness of Mind</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0b0e1a; user-select:none; -webkit-user-select:none; font-family:"PingFang SC","Microsoft YaHei",sans-serif; touch-action:none; overscroll-behavior:none; }
+  #c { position:fixed; inset:0; display:block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  #crosshair { position:absolute; left:50%; top:50%; width:14px; height:14px; transform:translate(-50%,-50%); opacity:.85; }
+  #crosshair::before,#crosshair::after{ content:""; position:absolute; background:#fff; border-radius:1px; box-shadow:0 0 4px rgba(0,0,0,.6); }
+  #crosshair::before{ left:6px; top:0; width:2px; height:14px; }
+  #crosshair::after{ left:0; top:6px; width:14px; height:2px; }
+
+  #topbar { position:absolute; top:max(12px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); text-align:center; color:#e8e4d8; }
+  #purity-label { font-size:12px; letter-spacing:4px; opacity:.75; }
+  #purity { font-size:30px; font-weight:200; letter-spacing:2px; text-shadow:0 2px 10px rgba(0,0,0,.5); }
+  #counts { font-size:11px; opacity:.6; margin-top:2px; letter-spacing:1px; }
+
+  #quote { position:absolute; top:18%; left:50%; transform:translateX(-50%); width:min(80%,520px);
+    text-align:center; color:#f2ecdc; font-size:clamp(14px,2.4vw,18px); letter-spacing:3px; font-weight:300;
+    text-shadow:0 2px 12px rgba(0,0,0,.7); opacity:0; transition:opacity 2.2s ease; }
+
+  #toast { position:absolute; top:32%; left:50%; transform:translateX(-50%); color:#ffe9b8; font-size:20px;
+    letter-spacing:6px; opacity:0; transition:opacity 1.5s ease; text-shadow:0 2px 14px rgba(0,0,0,.8); white-space:nowrap; }
+
+  /* ---------- 工具栏 ---------- */
+  #tools { position:absolute; left:50%; bottom:max(14px, env(safe-area-inset-bottom)); transform:translateX(-50%);
+    display:flex; gap:10px; pointer-events:auto; }
+  .tool { width:74px; padding:8px 4px 6px; border-radius:12px; background:rgba(15,18,32,.55); border:1px solid rgba(255,255,255,.12);
+    color:#cfc9ba; text-align:center; cursor:pointer; backdrop-filter:blur(6px); transition:all .15s ease; user-select:none; }
+  .tool .ico { font-size:22px; line-height:1; }
+  .tool .name { font-size:11px; margin-top:4px; letter-spacing:1px; }
+  .tool .key { font-size:9px; opacity:.45; margin-top:1px; }
+  .tool .bar { height:3px; border-radius:2px; background:rgba(255,255,255,.12); margin-top:5px; overflow:hidden; }
+  .tool .bar i { display:block; height:100%; width:100%; background:#8fd6a0; border-radius:2px; transition:width .1s linear; }
+  .tool.active { background:rgba(60,80,60,.65); border-color:#a8e0b0; color:#fff; transform:translateY(-4px); box-shadow:0 6px 18px rgba(0,0,0,.4); }
+  .tool.empty .bar i { background:#d66; }
+
+  /* ---------- 移动端控件 ---------- */
+  .touch-ui { display:none; }
+  body.is-touch .touch-ui { display:block; }
+  #joy { position:fixed; left:26px; bottom:calc(max(14px, env(safe-area-inset-bottom)) + 84px); width:120px; height:120px;
+    border-radius:50%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); z-index:20; pointer-events:auto; }
+  #joy-knob { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%;
+    background:rgba(255,255,255,.28); border:1px solid rgba(255,255,255,.4); transform:translate(-50%,-50%); }
+  #act { position:fixed; right:26px; bottom:calc(max(14px, env(safe-area-inset-bottom)) + 96px); width:86px; height:86px;
+    border-radius:50%; background:rgba(160,220,170,.22); border:2px solid rgba(200,255,210,.55); z-index:20; pointer-events:auto;
+    color:#eaffef; font-size:14px; letter-spacing:2px; display:none; align-items:center; justify-content:center; user-select:none; }
+  body.is-touch #act { display:flex; }
+  #act:active { background:rgba(160,220,170,.45); }
+
+  /* ---------- 开场 / 提示 ---------- */
+  #overlay { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, #1c2340 0%, #0b0e1a 75%); color:#e8e4d8; text-align:center; padding:24px; }
+  #overlay h1 { font-size:clamp(28px,6vw,46px); font-weight:200; letter-spacing:12px; margin-bottom:6px; text-indent:12px; }
+  #overlay .sub { font-size:12px; letter-spacing:6px; opacity:.55; margin-bottom:34px; }
+  #overlay .desc { font-size:14px; line-height:2.1; opacity:.85; font-weight:300; max-width:560px; }
+  #overlay .desc b { color:#a8e0b0; font-weight:500; }
+  #start { margin-top:38px; padding:13px 58px; font-size:15px; letter-spacing:8px; text-indent:8px; color:#dff5e2;
+    background:rgba(120,180,130,.14); border:1px solid rgba(170,230,180,.5); border-radius:40px; cursor:pointer; transition:all .2s; }
+  #start:hover { background:rgba(120,180,130,.3); }
+  #overlay .keys { margin-top:26px; font-size:11px; opacity:.62; letter-spacing:1px; line-height:1.9; }
+  #vignette { position:fixed; inset:0; z-index:5; pointer-events:none;
+    background:radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 45%, rgba(5,6,12,.55) 100%); }
+  #combo { position:absolute; left:50%; top:calc(50% + 46px); transform:translateX(-50%); color:#ffe9b8;
+    font-size:15px; letter-spacing:3px; opacity:0; transition:opacity .25s; text-shadow:0 2px 8px rgba(0,0,0,.8); }
+  #hint { position:absolute; left:50%; bottom:calc(max(14px, env(safe-area-inset-bottom)) + 108px); transform:translateX(-50%);
+    color:rgba(255,255,255,.78); font-size:12px; letter-spacing:2px; opacity:0; transition:opacity 1s; white-space:nowrap; }
+  body.is-touch #hint { bottom:auto; top:calc(max(12px, env(safe-area-inset-top)) + 92px); width:86%; white-space:normal; line-height:1.9; font-size:11.5px; }
+  body.is-touch .tool { width:64px; padding:7px 3px 5px; }
+  body.is-touch .tool .ico { font-size:19px; }
+  body.is-touch .tool .name { font-size:10px; }
+  @media (max-height:520px){
+    #quote { top:36%; font-size:14px; }
+    #hint { display:none !important; }
+    #topbar { transform:translateX(-50%) scale(.82); transform-origin:top center; }
+  }
+  #mute { position:fixed; top:max(12px, env(safe-area-inset-top)); right:14px; z-index:30; pointer-events:auto; cursor:pointer;
+    color:rgba(255,255,255,.55); font-size:18px; width:36px; height:36px; text-align:center; line-height:36px;
+    background:rgba(15,18,32,.5); border-radius:10px; border:1px solid rgba(255,255,255,.1); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="vignette"></div>
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="topbar">
+    <div id="purity-label">心 灵 净 化 度</div>
+    <div id="purity">0.0%</div>
+    <div id="counts">已除草 0 株</div>
+  </div>
+  <div id="quote"></div>
+  <div id="toast"></div>
+  <div id="combo"></div>
+  <div id="hint"></div>
+  <div id="tools"></div>
+</div>
+
+<div id="joy" class="touch-ui"><div id="joy-knob"></div></div>
+<div id="act" class="touch-ui">除 草</div>
+<div id="mute">音</div>
+
+<div id="overlay">
+  <h1>心灵荒野</h1>
+  <div class="sub">WILDERNESS&nbsp;OF&nbsp;MIND</div>
+  <div class="desc">
+    人的心灵是一片荒野。<br>
+    焦虑、杂念、遗憾……如杂草般疯长。<br>
+    拿起你的工具，一株一株，把它们除去。<br>
+    它们还会再长出来——<b>没关系，那就再除一次</b>。
+  </div>
+  <button id="start">进 入 荒 野</button>
+  <div class="keys" id="keyhelp"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   心灵荒野 —— 第一人称除草游戏
+   ============================================================ */
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (IS_TOUCH) document.body.classList.add('is-touch');
+document.getElementById('keyhelp').innerHTML = IS_TOUCH
+  ? '左下摇杆移动 · 右侧滑屏转视角 · 右下按钮使用道具 · 底部切换道具'
+  : 'WASD 移动 · 鼠标转视角 · 左键使用道具 · 1/2/3 或点击切换道具';
+
+/* ---------------- 基础场景 ---------------- */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+const BASE_DPR = Math.min(devicePixelRatio, IS_TOUCH ? 1.6 : 2);
+renderer.setPixelRatio(BASE_DPR);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x2a2440, 0.016);
+
+const camera = new THREE.PerspectiveCamera(innerHeight>innerWidth ? 82 : 72, innerWidth/innerHeight, 0.1, 400);
+
+/* 黄昏渐变天空 */
+{
+  const skyGeo = new THREE.SphereGeometry(320, 24, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite:false, fog:false,
+    vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`varying vec3 vP;
+      void main(){
+        float h = normalize(vP).y;
+        vec3 top = vec3(0.06,0.07,0.18);
+        vec3 mid = vec3(0.35,0.22,0.38);
+        vec3 low = vec3(0.85,0.48,0.30);
+        vec3 c = h>0.12 ? mix(mid,top,smoothstep(0.12,0.7,h)) : mix(low,mid,smoothstep(-0.08,0.12,h));
+        gl_FragColor = vec4(c,1.0);
+      }`
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+}
+
+/* 光 */
+scene.add(new THREE.HemisphereLight(0x8a7bb8, 0x2e3a26, 0.85));
+const sun = new THREE.DirectionalLight(0xffb37a, 0.9);
+sun.position.set(-40, 30, -20);
+scene.add(sun);
+
+/* ---------------- 地形 ---------------- */
+const WORLD = IS_TOUCH ? 25 : 30; // 世界半径
+function groundH(x, z){
+  return Math.sin(x*0.08)*Math.cos(z*0.06)*1.4
+       + Math.sin(x*0.23+1.7)*Math.cos(z*0.19)*0.45
+       + Math.sin((x+z)*0.045)*0.9;
+}
+{
+  const g = new THREE.PlaneGeometry(WORLD*2.4, WORLD*2.4, 90, 90);
+  g.rotateX(-Math.PI/2);
+  const pos = g.attributes.position;
+  const colors = new Float32Array(pos.count*3);
+  const c1 = new THREE.Color(0x4a5c38), c2 = new THREE.Color(0x6d7a45), tmp = new THREE.Color();
+  for (let i=0;i<pos.count;i++){
+    const x=pos.getX(i), z=pos.getZ(i);
+    pos.setY(i, groundH(x,z));
+    tmp.copy(c1).lerp(c2, Math.random()*0.7 + 0.15*Math.sin(x*0.5)*Math.cos(z*0.4));
+    colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  g.computeVertexNormals();
+  scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors:true })));
+}
+
+/* 装饰：枯树与石头 */
+function addScenery(){
+  const trunkMat = new THREE.MeshLambertMaterial({ color:0x2a2233 });
+  const rockMat  = new THREE.MeshLambertMaterial({ color:0x4d4a5a });
+  for (let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2, r=25+Math.random()*38;
+    const x=Math.cos(a)*r, z=Math.sin(a)*r, y=groundH(x,z);
+    if (Math.random()<0.5){
+      const t=new THREE.Group();
+      const h=4+Math.random()*4;
+      const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.3,h,5), trunkMat);
+      trunk.position.y=h/2; t.add(trunk);
+      for(let b=0;b<3;b++){
+        const br=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.09,2+Math.random()*2,4), trunkMat);
+        br.position.y=h*(0.55+b*0.15); br.rotation.z=0.7+Math.random()*0.8; br.rotation.y=Math.random()*6;
+        br.position.x=Math.cos(br.rotation.y)*0.8; br.position.z=Math.sin(br.rotation.y)*0.8;
+        t.add(br);
+      }
+      t.position.set(x,y,z); scene.add(t);
+    } else {
+      const rock=new THREE.Mesh(new THREE.IcosahedronGeometry(0.6+Math.random()*1.6,0), rockMat);
+      rock.position.set(x,y+0.3,z); rock.rotation.set(Math.random()*3,Math.random()*3,0);
+      rock.scale.y=0.6+Math.random()*0.5; scene.add(rock);
+    }
+  }
+}
+addScenery();
+
+/* 萤火虫 / 飘浮的思绪微粒 */
+let fireflies;
+{
+  const N=260, pos=new Float32Array(N*3), seed=new Float32Array(N);
+  for(let i=0;i<N;i++){
+    const a=Math.random()*Math.PI*2, r=Math.random()*WORLD;
+    pos[i*3]=Math.cos(a)*r; pos[i*3+1]=0.6+Math.random()*3.4; pos[i*3+2]=Math.sin(a)*r;
+    seed[i]=Math.random()*10;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(seed,1));
+  const m=new THREE.ShaderMaterial({
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false,
+    uniforms:{ uTime:{value:0} },
+    vertexShader:`attribute float aSeed; uniform float uTime; varying float vA;
+      void main(){
+        vec3 p=position;
+        p.x+=sin(uTime*0.4+aSeed*7.0)*1.2; p.y+=sin(uTime*0.6+aSeed*13.0)*0.6; p.z+=cos(uTime*0.35+aSeed*5.0)*1.2;
+        vA=0.35+0.65*abs(sin(uTime*0.8+aSeed*11.0));
+        vec4 mv=modelViewMatrix*vec4(p,1.0);
+        gl_PointSize=90.0/max(1.0,-mv.z)*0.22;
+        gl_Position=projectionMatrix*mv;
+      }`,
+    fragmentShader:`varying float vA;
+      void main(){
+        float d=length(gl_PointCoord-0.5); if(d>0.5) discard;
+        gl_FragColor=vec4(1.0,0.85,0.55, vA*(1.0-d*2.0));
+      }`
+  });
+  fireflies=new THREE.Points(g,m); fireflies.frustumCulled=false; scene.add(fireflies);
+}
+
+/* ---------------- 杂草（InstancedMesh + 摇摆着色器） ---------------- */
+const GRASS_N = IS_TOUCH ? 18000 : 28000;
+const bladeGeo = (()=>{           // 三段渐窄、略弯的草叶
+  const w=0.095, h=1.0, bend=0.2;
+  const v=[];
+  const seg=[[-w,0,0, w,0,0],[-w*0.72,h*0.45,bend*0.3, w*0.72,h*0.45,bend*0.3],[-w*0.34,h*0.8,bend*0.7, w*0.34,h*0.8,bend*0.7],[0,h,bend, 0,h,bend]];
+  const idx=[];
+  for(let s=0;s<3;s++){ const a=s*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
+  seg.forEach(p=>v.push(...p));
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(v),3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+})();
+
+const grassMat = new THREE.ShaderMaterial({
+  side:THREE.DoubleSide, fog:true,
+  uniforms: THREE.UniformsUtils.merge([ THREE.UniformsLib.fog, { uTime:{value:0} } ]),
+  vertexShader:`
+    #include <fog_pars_vertex>
+    attribute float aPhase;
+    attribute vec3 aColor;
+    attribute float aH;
+    uniform float uTime;
+    varying vec3 vC; varying float vH;
+    void main(){
+      vec3 p=position;
+      p.y *= aH;
+      p.x *= mix(0.5,1.0,aH); p.z *= mix(0.5,1.0,aH);
+      float sway = sin(uTime*1.6 + aPhase)*0.12 + sin(uTime*0.7 + aPhase*1.7)*0.06;
+      p.x += sway * p.y;  p.z += sway*0.6*p.y;
+      vC=aColor; vH=position.y*aH;
+      vec4 wp = instanceMatrix * vec4(p,1.0);
+      vec4 mvPosition = modelViewMatrix * wp;
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }`,
+  fragmentShader:`
+    #include <fog_pars_fragment>
+    varying vec3 vC; varying float vH;
+    void main(){
+      vec3 c = vC * (0.45 + 0.55*vH);
+      gl_FragColor = vec4(c, 1.0);
+      #include <fog_fragment>
+    }`
+});
+
+const grass = new THREE.InstancedMesh(bladeGeo, grassMat, GRASS_N);
+grass.frustumCulled = false;
+scene.add(grass);
+
+/* 每株草的状态 */
+const gX=new Float32Array(GRASS_N), gZ=new Float32Array(GRASS_N),
+      gRot=new Float32Array(GRASS_N), gS=new Float32Array(GRASS_N),
+      gTX=new Float32Array(GRASS_N), gTZ=new Float32Array(GRASS_N),
+      gAlive=new Uint8Array(GRASS_N), gCur=new Float32Array(GRASS_N); // gCur: 当前高度比例
+const phaseArr=new Float32Array(GRASS_N), colArr=new Float32Array(GRASS_N*3);
+const hArr=new Float32Array(GRASS_N);          // 实例高度（着色器属性）
+let hAttr=null, hDirty=false;
+let aliveCount = GRASS_N, cutTotal = 0;
+
+const _m=new THREE.Matrix4(), _p=new THREE.Vector3(), _q=new THREE.Quaternion(), _s=new THREE.Vector3(), _e=new THREE.Euler();
+function placeBlade(i){
+  _p.set(gX[i], groundH(gX[i],gZ[i]), gZ[i]);
+  _e.set(gTX[i], gRot[i], gTZ[i], 'YXZ'); _q.setFromEuler(_e);
+  _s.set(gS[i], gS[i], gS[i]);
+  _m.compose(_p,_q,_s);
+  grass.setMatrixAt(i,_m);
+}
+function setH(i,h){ hArr[i]=h; hDirty=true; }
+{
+  const base=new THREE.Color(0x2c4420), tip=new THREE.Color(0x8b9752), dry=new THREE.Color(0x8a8253), c=new THREE.Color();
+  for(let i=0;i<GRASS_N;i++){
+    const a=Math.random()*Math.PI*2, r=Math.sqrt(Math.random())*WORLD;
+    gX[i]=Math.cos(a)*r; gZ[i]=Math.sin(a)*r;
+    gRot[i]=Math.random()*Math.PI*2;
+    gTX[i]=(Math.random()-0.5)*0.22; gTZ[i]=(Math.random()-0.5)*0.22;
+    gS[i]=0.55+Math.random()*0.85;
+    gAlive[i]=1; gCur[i]=1; hArr[i]=1;
+    phaseArr[i]=Math.random()*10;
+    c.copy(base).lerp(tip, Math.random()); if(Math.random()<0.12) c.lerp(dry, 0.5+Math.random()*0.4);
+    colArr[i*3]=c.r; colArr[i*3+1]=c.g; colArr[i*3+2]=c.b;
+    placeBlade(i);
+  }
+  bladeGeo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phaseArr,1));
+  bladeGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(colArr,3));
+  hAttr = new THREE.InstancedBufferAttribute(hArr,1);
+  hAttr.setUsage(THREE.DynamicDrawUsage);
+  bladeGeo.setAttribute('aH', hAttr);
+  grass.instanceMatrix.needsUpdate=true;
+}
+
+/* 割除 / 重生 动画管理 */
+const animSet = new Set();            // 正在做缩放动画的下标
+const regrowQ = [];                   // {i, t} 按时间近似有序
+function killBlade(i, delay){
+  if(!gAlive[i]) return false;
+  gAlive[i]=0; aliveCount--; cutTotal++;
+  animSet.add(i);
+  // 约三成杂草会在稍后重新长出（心灵的主题）；其余保持清净，让努力看得见
+  if(Math.random() < 0.3){
+    const d = delay || 40 + Math.random()*40;
+    regrowQ.push({ i, t: performance.now()/1000 + d });
+  }
+  return true;
+}
+/* 3 米网格索引，避免每次除草遍历全部草株 */
+const CELL=3, grid=new Map();
+function cellKey(x,z){ return (Math.floor(x/CELL)+200)*1000 + (Math.floor(z/CELL)+200); }
+(function buildGrid(){
+  for(let i=0;i<GRASS_N;i++){
+    const k=cellKey(gX[i],gZ[i]);
+    let arr=grid.get(k); if(!arr){ arr=[]; grid.set(k,arr); }
+    arr.push(i);
+  }
+})();
+function killInRadius(cx,cz,r,maxN,delay){
+  let n=0; const r2=r*r;
+  const x0=Math.floor((cx-r)/CELL), x1=Math.floor((cx+r)/CELL);
+  const z0=Math.floor((cz-r)/CELL), z1=Math.floor((cz+r)/CELL);
+  for(let gx=x0;gx<=x1;gx++){
+    for(let gz=z0;gz<=z1;gz++){
+      const arr=grid.get((gx+200)*1000 + (gz+200));
+      if(!arr) continue;
+      for(let k=0;k<arr.length;k++){
+        const i=arr[k];
+        if(!gAlive[i]) continue;
+        const dx=gX[i]-cx, dz=gZ[i]-cz;
+        if(dx*dx+dz*dz<r2 && killBlade(i, delay) && ++n>=maxN) return n;
+      }
+    }
+  }
+  return n;
+}
+
+/* ---------------- 玩家 ---------------- */
+const player = {
+  x:0, z:0, yaw:Math.PI*0.25, pitch:-0.05,
+  speed:5.2, eyeH:1.65,
+  bobT:0, moving:false
+};
+const keys={};
+addEventListener('keydown',e=>{ keys[e.code]=true;
+  if(e.code==='Digit1') selectTool(0);
+  if(e.code==='Digit2') selectTool(1);
+  if(e.code==='Digit3') selectTool(2);
+});
+addEventListener('keyup',e=>keys[e.code]=false);
+
+/* 鼠标视角（指针锁定） */
+let locked=false;
+canvas.addEventListener('mousedown',()=>{ if(!IS_TOUCH && started){ if(!locked) requestLock(); acting=true; } });
+canvas.addEventListener('click',()=>{ if(!IS_TOUCH && !locked && started) requestLock(); });
+document.addEventListener('pointerlockchange',()=>{ locked = document.pointerLockElement===canvas; if(!locked) acting=false; });
+addEventListener('blur',()=>{ acting=false; });
+let dragX=0, dragY=0, dragging=false;
+canvas.addEventListener('mousedown',e=>{ if(!IS_TOUCH){ dragging=true; dragX=e.clientX; dragY=e.clientY; } });
+addEventListener('mouseup',()=>{ dragging=false; });
+document.addEventListener('mousemove',e=>{
+  if(locked){
+    player.yaw   -= e.movementX*0.0022;
+    player.pitch -= e.movementY*0.0022;
+  } else if(dragging){
+    player.yaw   -= (e.clientX-dragX)*0.004;
+    player.pitch -= (e.clientY-dragY)*0.004;
+    dragX=e.clientX; dragY=e.clientY;
+  } else return;
+  player.pitch = Math.max(-1.3, Math.min(1.3, player.pitch));
+});
+
+/* 移动端：虚拟摇杆 + 滑屏视角 */
+const joyVec={x:0,y:0};
+let joyId=null, joyCX=0, joyCY=0;
+const joyEl=document.getElementById('joy'), knob=document.getElementById('joy-knob');
+joyEl.addEventListener('touchstart',e=>{
+  const t=e.changedTouches[0]; joyId=t.identifier;
+  const r=joyEl.getBoundingClientRect(); joyCX=r.left+r.width/2; joyCY=r.top+r.height/2;
+  e.preventDefault();
+},{passive:false});
+addEventListener('touchmove',e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){
+      let dx=t.clientX-joyCX, dy=t.clientY-joyCY;
+      const len=Math.hypot(dx,dy), max=44;
+      if(len>max){ dx*=max/len; dy*=max/len; }
+      knob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      joyVec.x=dx/max; joyVec.y=dy/max;
+    } else if(t.identifier===lookId){
+      player.yaw   -= (t.clientX-lookX)*0.005;
+      player.pitch -= (t.clientY-lookY)*0.005;
+      player.pitch = Math.max(-1.3, Math.min(1.3, player.pitch));
+      lookX=t.clientX; lookY=t.clientY;
+    }
+  }
+},{passive:true});
+addEventListener('touchend',e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joyId){ joyId=null; joyVec.x=joyVec.y=0; knob.style.transform='translate(-50%,-50%)'; }
+    if(t.identifier===lookId) lookId=null;
+  }
+});
+let lookId=null, lookX=0, lookY=0;
+canvas.addEventListener('touchstart',e=>{
+  for(const t of e.changedTouches){
+    if(t.clientX > innerWidth*0.35 && lookId===null){ lookId=t.identifier; lookX=t.clientX; lookY=t.clientY; }
+  }
+},{passive:true});
+
+/* ---------------- 道具系统 ---------------- */
+const TOOLS=[
+  { name:'小刀',   ico:'刀', key:'1', cd:0.38 },
+  { name:'除草剂', ico:'药', key:'2', cd:0 },
+  { name:'割草机', ico:'机', key:'3', cd:0 },
+];
+let toolIdx=0, lastSwing=0, sprayOn=false;
+let AC=null, master=null, muted=false, mowerOsc=null, mowerGain=null, sprayNoise=null, sprayGain=null;
+let ammo=100, fuel=100, ammoWait=0;      // 除草剂量 / 割草机油量
+let acting=false;                        // 是否按住动作键
+
+const toolsEl=document.getElementById('tools');
+TOOLS.forEach((t,i)=>{
+  const d=document.createElement('div');
+  d.className='tool'; d.id='tool'+i;
+  d.innerHTML=`<div class="ico">${t.ico}</div><div class="name">${t.name}</div>
+    <div class="key">${IS_TOUCH?'':'按键 '+t.key}</div><div class="bar"><i id="bar${i}"></i></div>`;
+  d.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); selectTool(i); });
+  toolsEl.appendChild(d);
+});
+function selectTool(i){
+  toolIdx=i;
+  TOOLS.forEach((_,j)=>document.getElementById('tool'+j).classList.toggle('active', j===i));
+  knifeMesh.visible = (i===0);
+  sprayMesh.visible = (i===1);
+  mowerMesh.visible = (i===2);
+  if(i!==1) sprayOn=false;
+  sfxClick();
+}
+
+/* 鼠标 / 触屏动作 */
+addEventListener('mouseup',e=>{ if(e.button===0) acting=false; });
+const actBtn=document.getElementById('act');
+actBtn.addEventListener('touchstart',e=>{ acting=true; e.preventDefault(); },{passive:false});
+actBtn.addEventListener('touchend',()=>acting=false);
+
+/* ---------------- 手持物模型 ---------------- */
+const hand=new THREE.Group(); camera.add(hand); scene.add(camera);
+hand.position.set(0.38,-0.29,-0.6);
+function layoutHand(){
+  const portrait = camera.aspect < 1;
+  // 屏幕高度越小，手持道具整体越小，避免矮屏被道具淹没
+  hand.scale.setScalar(Math.min(1, Math.max(0.6, innerHeight/760)));
+  hand.position.set(portrait ? 0.2 : 0.38, portrait ? -0.29 : -0.26, portrait ? -0.66 : -0.6);
+  if(portrait){
+    knifeMesh.scale.setScalar(0.62);
+    sprayMesh.scale.setScalar(0.72);
+    mowerMesh.scale.setScalar(0.42);
+    mowerMesh.position.set(-0.02, 0.0, 0.06);
+  } else {
+    knifeMesh.scale.setScalar(0.85);
+    sprayMesh.scale.setScalar(0.9);
+    mowerMesh.scale.setScalar(0.86);
+    mowerMesh.position.set(-0.24, 0.2, 0.06);
+  }
+}
+
+/* 手部素材（握拳 + 袖口），刀具/喷壶共用 */
+function makeHand(){
+  const g=new THREE.Group();
+  const skin=new THREE.MeshLambertMaterial({color:0xc08d66});
+  const sleeve=new THREE.MeshLambertMaterial({color:0x39405a});
+  const fist=new THREE.Mesh(new THREE.BoxGeometry(0.115,0.13,0.135), skin);
+  fist.rotation.z=0.2;
+  const thumb=new THREE.Mesh(new THREE.BoxGeometry(0.045,0.075,0.05), skin);
+  thumb.position.set(-0.06,0.055,0.02); thumb.rotation.z=0.6;
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.062,0.075,0.4,8), sleeve);
+  arm.rotation.set(1.25,0,0.18); arm.position.set(0.03,-0.14,0.18);
+  const cuff=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.06,8), new THREE.MeshLambertMaterial({color:0x272c3d}));
+  cuff.rotation.x=1.25; cuff.position.set(0.02,-0.1,0.06);
+  g.add(fist,thumb,arm,cuff);
+  return g;
+}
+
+const knifeMesh=(()=>{  // 小刀
+  const g=new THREE.Group();
+  // 刀身：四棱锥形，前端收尖
+  const blade=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.04,0.36,4),
+    new THREE.MeshLambertMaterial({color:0xc3cbd6, emissive:0x14161c}));
+  blade.scale.z=0.42; blade.rotation.y=Math.PI/4; blade.position.set(0.0,0.29,0.0);
+  const guard=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.022,0.05),
+    new THREE.MeshLambertMaterial({color:0x9aa2ad}));
+  guard.position.y=0.075;
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.033,0.17,8),
+    new THREE.MeshLambertMaterial({color:0x50351f}));
+  grip.position.y=-0.02;
+  const handM=makeHand();
+  g.add(blade,guard,grip,handM);
+  g.rotation.set(0.1,0,0.66); g.scale.setScalar(0.85); g.position.set(0.02,0.05,0.02);
+  hand.add(g); return g;
+})();
+
+const sprayMesh=(()=>{  // 除草剂喷壶
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.095,0.26,12),
+    new THREE.MeshLambertMaterial({color:0x86bfe0}));
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.055,0.06,10),
+    new THREE.MeshLambertMaterial({color:0xd8d8d8}));
+  neck.position.y=0.15;
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.055,0.06),
+    new THREE.MeshLambertMaterial({color:0xe6e6e6}));
+  head.position.set(-0.04,0.185,0);
+  const noz=new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.02,0.1,6),
+    new THREE.MeshLambertMaterial({color:0x777777}));
+  noz.rotation.z=Math.PI/2; noz.position.set(-0.14,0.185,0);
+  const trigger=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.07,0.04),
+    new THREE.MeshLambertMaterial({color:0xbbbbbb}));
+  trigger.position.set(0.05,0.11,0);
+  const label=new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.12),
+    new THREE.MeshBasicMaterial({color:0xe8f6c8}));
+  label.position.set(0,-0.02,0.096); label.rotation.y=0;
+  const handM=makeHand();
+  g.add(body,neck,head,noz,trigger,label,handM);
+  g.rotation.set(0.18,0.5,0.1); g.scale.setScalar(0.9); g.position.set(0.0,0.1,0.03);
+  hand.add(g); return g;
+})();
+
+const mowerMesh=(()=>{  // 割草机（前置推杆式）
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.15,0.62),
+    new THREE.MeshLambertMaterial({color:0x9c4630}));
+  body.position.set(0,-0.3,-0.32);
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(0.54,0.04,0.66),
+    new THREE.MeshLambertMaterial({color:0x8d3320}));
+  deck.position.set(0,-0.38,-0.32);
+  const barL=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.55,6),
+    new THREE.MeshLambertMaterial({color:0x333333}));
+  barL.rotation.x=1.15; barL.position.set(-0.17,-0.06,-0.05);
+  const barR=barL.clone(); barR.position.x=0.17;
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.4,6),
+    new THREE.MeshLambertMaterial({color:0x2a2a2a}));
+  grip.rotation.z=Math.PI/2; grip.position.set(0,0.2,0.22);
+  const h1=makeHand(); h1.position.set(-0.16,0.12,0.24); h1.scale.setScalar(0.9);
+  const h2=makeHand(); h2.position.set(0.16,0.12,0.24); h2.scale.setScalar(0.9);
+  g.add(body,deck,barL,barR,grip,h1,h2);
+  g.position.set(-0.24,0.2,0.06); g.scale.setScalar(0.86);
+  hand.add(g); return g;
+})();
+layoutHand();   // 所有道具就绪后再按屏幕比例排布
+selectTool(0);
+
+/* 喷雾粒子 */
+const sprayN=90, sprayGeo=new THREE.BufferGeometry();
+const sprayPos=new Float32Array(sprayN*3), sprayVel=new Float32Array(sprayN*3), sprayLife=new Float32Array(sprayN);
+sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos,3));
+const sprayPts=new THREE.Points(sprayGeo,new THREE.PointsMaterial({color:0x9fe8ff,size:0.07,transparent:true,opacity:0.8,depthWrite:false}));
+sprayPts.frustumCulled=false; scene.add(sprayPts);
+let sprayHead=0;
+
+/* 草屑粒子 */
+const chipN=160, chipGeo=new THREE.BufferGeometry();
+const chipPos=new Float32Array(chipN*3), chipVel=new Float32Array(chipN*3), chipLife=new Float32Array(chipN);
+chipGeo.setAttribute('position', new THREE.BufferAttribute(chipPos,3));
+const chips=new THREE.Points(chipGeo,new THREE.PointsMaterial({color:0x93c05a,size:0.045,transparent:true,opacity:0.9,depthWrite:false}));
+chips.frustumCulled=false; scene.add(chips);
+let chipHead=0;
+function spawnChips(x,y,z,n){
+  for(let k=0;k<n;k++){
+    const i=chipHead=(chipHead+1)%chipN;
+    chipPos[i*3]=x+(Math.random()-0.5)*0.5; chipPos[i*3+1]=y+Math.random()*0.5; chipPos[i*3+2]=z+(Math.random()-0.5)*0.5;
+    chipVel[i*3]=(Math.random()-0.5)*2; chipVel[i*3+1]=1.5+Math.random()*2; chipVel[i*3+2]=(Math.random()-0.5)*2;
+    chipLife[i]=0.7;
+  }
+}
+
+/* ---------------- 音效（WebAudio 程序化生成） ---------------- */
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain(); master.gain.value=0.5; master.connect(AC.destination);
+  // 风声
+  const len=AC.sampleRate*2, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  const src=AC.createBufferSource(); src.buffer=buf; src.loop=true;
+  const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.value=300; f.Q.value=0.6;
+  const g=AC.createGain(); g.gain.value=0.05;
+  const lfo=AC.createOscillator(); lfo.frequency.value=0.13;
+  const lg=AC.createGain(); lg.gain.value=0.03;
+  lfo.connect(lg); lg.connect(g.gain); lfo.start();
+  src.connect(f); f.connect(g); g.connect(master); src.start();
+}
+function sfxSwish(){
+  if(!AC||muted) return;
+  const len=AC.sampleRate*0.12, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  const s=AC.createBufferSource(); s.buffer=buf;
+  const f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=1800;
+  const g=AC.createGain(); g.gain.value=0.35;
+  s.connect(f); f.connect(g); g.connect(master); s.start();
+}
+function sfxClick(){
+  if(!AC||muted) return;
+  const o=AC.createOscillator(); o.type='square'; o.frequency.value=660;
+  const g=AC.createGain(); g.gain.setValueAtTime(0.08,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.07);
+  o.connect(g); g.connect(master); o.start(); o.stop(AC.currentTime+0.08);
+}
+function setMowerSound(on){
+  if(!AC) return;
+  if(on && !mowerOsc && !muted){
+    mowerOsc=AC.createOscillator(); mowerOsc.type='sawtooth'; mowerOsc.frequency.value=82;
+    const f=AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value=420;
+    mowerGain=AC.createGain(); mowerGain.gain.value=0.0;
+    mowerGain.gain.linearRampToValueAtTime(0.12, AC.currentTime+0.3);
+    mowerOsc.connect(f); f.connect(mowerGain); mowerGain.connect(master); mowerOsc.start();
+  } else if(!on && mowerOsc){
+    mowerGain.gain.linearRampToValueAtTime(0,AC.currentTime+0.2);
+    const o=mowerOsc; setTimeout(()=>o.stop(),300); mowerOsc=null;
+  }
+}
+function setSpraySound(on){
+  if(!AC) return;
+  if(on && !sprayNoise && !muted){
+    const len=AC.sampleRate*0.5, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    sprayNoise=AC.createBufferSource(); sprayNoise.buffer=buf; sprayNoise.loop=true;
+    const f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=4000;
+    sprayGain=AC.createGain(); sprayGain.gain.value=0.05;
+    sprayNoise.connect(f); f.connect(sprayGain); sprayGain.connect(master); sprayNoise.start();
+  } else if(!on && sprayNoise){
+    sprayNoise.stop(); sprayNoise=null;
+  }
+}
+document.getElementById('mute').addEventListener('click',()=>{
+  muted=!muted;
+  document.getElementById('mute').textContent = muted?'静':'音';
+  if(master) master.gain.value = muted?0:0.5;
+});
+
+/* ---------------- 文案 ---------------- */
+const QUOTES=[
+  '焦虑是最先长出来的那种草。',
+  '你割不掉昨天，但可以割掉今天的杂草。',
+  '杂念除了还会长，人也一样要天天修行。',
+  '荒野不可怕，可怕的是你从不走进它。',
+  '每一株杂草，都曾是一个没被处理的念头。',
+  '慢一点，一株一株来。',
+  '心里的空地多了，风就进来了。',
+  '除草不是消灭，是照看。'
+];
+let quoteIdx=0;
+function showQuote(){
+  const q=document.getElementById('quote');
+  q.textContent=QUOTES[quoteIdx++ % QUOTES.length];
+  q.style.opacity=1;
+  setTimeout(()=>q.style.opacity=0, 6000);
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.opacity=1;
+  setTimeout(()=>t.style.opacity=0, 2600);
+}
+
+/* ---------------- 游戏循环 ---------------- */
+let started=false, lastT=performance.now()/1000, mowerRunning=false;
+const purityEl=document.getElementById('purity'), countsEl=document.getElementById('counts');
+let milestone=0, combo=0, comboT=0;
+
+document.getElementById('start').addEventListener('click',()=>{
+  document.getElementById('overlay').style.display='none';
+  initAudio(); if(AC && AC.state==='suspended') AC.resume(); started=true;
+  if(!IS_TOUCH) requestLock();
+  showQuote(); setInterval(showQuote, 16000);
+  const h=document.getElementById('hint');
+  h.textContent = IS_TOUCH ? '左下摇杆移动 · 右侧滑屏转视角 · 按住右下按钮除草'
+                           : 'WASD 移动 · 左键除草 · 1/2/3 切换道具';
+  h.style.opacity=1;
+  setTimeout(()=>h.style.opacity=0, 8000);
+});
+addEventListener('contextmenu', e=>{ if(started) e.preventDefault(); });
+if(location.hash==='#autostart') document.getElementById('start').click();
+/* 调试接口（不影响正常游玩） */
+window.__dbg = {
+  get alive(){ return aliveCount; }, get cut(){ return cutTotal; },
+  get purity(){ return (1-aliveCount/GRASS_N)*100; },
+  player, killInRadius, selectTool, setActing(v){ acting=v; },
+  get acting(){ return acting; }, get joy(){ return {x:joyVec.x,y:joyVec.y}; },
+  setMoving(v){ joyVec.x=0; joyVec.y=v?-1:0; }
+};
+
+function addCombo(n){
+  if(n<=0) return;
+  combo += n; comboT = performance.now()/1000 + 2.6;
+}
+function fwdVec(){ return { x:-Math.sin(player.yaw), z:-Math.cos(player.yaw) }; }
+
+function aimPoint(dist){
+  const f=fwdVec();
+  const cp=Math.cos(player.pitch);
+  return { x:player.x + f.x*cp*dist, z:player.z + f.z*cp*dist };
+}
+
+function update(dt, now){
+  /* --- 移动 --- */
+  let mx=0, mz=0;
+  if(keys['KeyW']||keys['ArrowUp']) mz+=1;
+  if(keys['KeyS']||keys['ArrowDown']) mz-=1;
+  if(keys['KeyA']||keys['ArrowLeft']) mx-=1;
+  if(keys['KeyD']||keys['ArrowRight']) mx+=1;
+  mx+=joyVec.x; mz-=joyVec.y;
+  const ml=Math.hypot(mx,mz);
+  player.moving = ml>0.1;
+  if(player.moving){
+    mx/=Math.max(1,ml); mz/=Math.max(1,ml);
+    const f=fwdVec();
+    const rx=-f.z, rz=f.x;
+    player.x += (f.x*mz + rx*mx) * player.speed*dt;
+    player.z += (f.z*mz + rz*mx) * player.speed*dt;
+    const d=Math.hypot(player.x,player.z);
+    if(d>WORLD){ player.x*=WORLD/d; player.z*=WORLD/d; }
+    player.bobT += dt*9;
+  }
+
+  /* --- 相机 --- */
+  const bob = player.moving ? Math.sin(player.bobT)*0.045 : 0;
+  camera.position.set(player.x, groundH(player.x,player.z)+player.eyeH+bob, player.z);
+  camera.rotation.order='YXZ';
+  camera.rotation.y=player.yaw;
+  camera.rotation.x=player.pitch;
+
+  /* --- 道具逻辑 --- */
+  hand.position.y = -0.42 + (player.moving?Math.sin(player.bobT*1.05)*0.02:0);
+
+  // 小刀
+  if(toolIdx===0){
+    knifeMesh.rotation.x = 0.5 + Math.max(0, 1-(now-lastSwing)*4)*-1.2;
+    if(acting && now-lastSwing > TOOLS[0].cd){
+      lastSwing=now;
+      const p=aimPoint(1.9);
+      const n=killInRadius(p.x,p.z,1.6,14, 40+Math.random()*30);
+      if(n>0){ sfxSwish(); spawnChips(p.x, groundH(p.x,p.z)+0.6, p.z, Math.min(n,10)); addCombo(n); }
+    }
+  }
+  // 除草剂
+  if(toolIdx===1){
+    const want = acting && ammo>0;
+    if(want){
+      ammo=Math.max(0,ammo-26*dt); ammoWait=0;
+      const p=aimPoint(4.2);
+      const n=killInRadius(p.x,p.z,1.9,5, 70+Math.random()*40);
+      if(n>0){ spawnChips(p.x, groundH(p.x,p.z)+0.5, p.z, n+2); addCombo(n); }
+      // 喷雾粒子
+      const f=fwdVec(), cp=Math.cos(player.pitch), sp=Math.sin(player.pitch);
+      const ox=camera.position.x+f.x*0.6, oy=camera.position.y-0.25+sp*0.6, oz=camera.position.z+f.z*0.6;
+      for(let k=0;k<3;k++){
+        const i=sprayHead=(sprayHead+1)%sprayN;
+        sprayPos[i*3]=ox; sprayPos[i*3+1]=oy; sprayPos[i*3+2]=oz;
+        sprayVel[i*3]=f.x*cp*9+(Math.random()-0.5); sprayVel[i*3+1]=sp*9+(Math.random()-0.5)*0.6; sprayVel[i*3+2]=f.z*cp*9+(Math.random()-0.5);
+        sprayLife[i]=0.5;
+      }
+    } else {
+      ammoWait+=dt;
+      if(ammoWait>1) ammo=Math.min(100,ammo+11*dt);
+    }
+    if(want!==sprayOn){ sprayOn=want; setSpraySound(want); }
+    document.getElementById('bar1').style.width=ammo+'%';
+    document.getElementById('tool1').classList.toggle('empty', ammo<2);
+  }
+  // 割草机
+  if(toolIdx===2){
+    const run = acting && player.moving && fuel>0;
+    if(run){
+      fuel=Math.max(0,fuel-10*dt);
+      const n=killInRadius(player.x+fwdVec().x*0.7, player.z+fwdVec().z*0.7, 1.15, 40, 40+Math.random()*30);
+      if(n>0){ spawnChips(player.x, groundH(player.x,player.z)+0.4, player.z, 3); addCombo(n); }
+    } else if(!acting){
+      fuel=Math.min(100,fuel+7*dt);
+    }
+    if(run!==mowerRunning){ mowerRunning=run; setMowerSound(run); }
+    document.getElementById('bar2').style.width=fuel+'%';
+    document.getElementById('tool2').classList.toggle('empty', fuel<2);
+    mowerMesh.rotation.x = run ? Math.sin(now*40)*0.02 : 0;
+  }
+
+  /* --- 杂草动画 / 重生 --- */
+  animSet.forEach(i=>{
+    const target = gAlive[i]?1:0;
+    const speed = gAlive[i]? 1.2*dt : 7*dt;
+    gCur[i] += Math.sign(target-gCur[i])*speed;
+    if(Math.abs(gCur[i]-target)<0.03){
+      gCur[i]=target; animSet.delete(i);
+      if(target===0) gCur[i]=0.09;
+    }
+    setH(i, Math.max(0.09,gCur[i]));
+  });
+  if(hDirty){ hAttr.needsUpdate=true; hDirty=false; }
+  while(regrowQ.length && regrowQ[0].t<=now){
+    const item=regrowQ.shift();
+    const i=item.i;
+    const far = Math.hypot(gX[i]-player.x, gZ[i]-player.z) > 9;
+    if(!gAlive[i] && far){ gAlive[i]=1; aliveCount++; gCur[i]=0.09; animSet.add(i); }
+    else if(!gAlive[i]){ item.t = now + 6; regrowQ.push(item); }   // 玩家眼前暂不重生
+  }
+
+  /* --- 粒子更新 --- */
+  for(let i=0;i<sprayN;i++){
+    if(sprayLife[i]>0){
+      sprayLife[i]-=dt;
+      sprayPos[i*3]+=sprayVel[i*3]*dt; sprayPos[i*3+1]+=sprayVel[i*3+1]*dt; sprayPos[i*3+2]+=sprayVel[i*3+2]*dt;
+      sprayVel[i*3+1]-=3*dt;
+    } else sprayPos[i*3+1]=-999;
+  }
+  sprayGeo.attributes.position.needsUpdate=true;
+  for(let i=0;i<chipN;i++){
+    if(chipLife[i]>0){
+      chipLife[i]-=dt;
+      chipPos[i*3]+=chipVel[i*3]*dt; chipPos[i*3+1]+=chipVel[i*3+1]*dt; chipPos[i*3+2]+=chipVel[i*3+2]*dt;
+      chipVel[i*3+1]-=7*dt;
+    } else chipPos[i*3+1]=-999;
+  }
+  chipGeo.attributes.position.needsUpdate=true;
+
+  /* --- 环境动效 --- */
+  grassMat.uniforms.uTime.value=now;
+  fireflies.material.uniforms.uTime.value=now;
+
+  /* --- HUD --- */
+  const purity=(1-aliveCount/GRASS_N)*100;
+  purityEl.textContent=purity.toFixed(1)+'%';
+  countsEl.textContent=`已除草 ${cutTotal} 株`;
+  const comboEl=document.getElementById('combo');
+  if(now>comboT){ combo=0; }
+  if(combo>=5){ comboEl.textContent='连击 ×'+combo; comboEl.style.opacity=Math.min(1, 0.4+combo/60); }
+  else comboEl.style.opacity=0;
+
+  const ms=[10,25,50,75,90];
+  if(milestone<ms.length && purity>=ms[milestone]){
+    const msgs=['杂草开始退让了。','心灵初见清爽。','半程已过，继续。','荒野几乎成了庭院。','心灵重归宁静 · 但杂草仍会回来'];
+    toast(msgs[milestone]); milestone++;
+  }
+  if(purity<ms[milestone-1]-8 && milestone>0) milestone--;  // 回退允许再次触发
+
+  renderer.render(scene,camera);
+}
+
+function requestLock(){
+  try { const p=canvas.requestPointerLock(); if(p && p.catch) p.catch(()=>{}); } catch(e){}
+}
+
+let ftAcc=0, ftN=0, dprScale=1;
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now()/1000;
+  const dt=Math.min(0.05, now-lastT);
+  lastT=now;
+  // 性能自适应
+  if(started){
+    ftAcc+=dt; ftN++;
+    if(ftN>=45){
+      const avg=ftAcc/ftN;
+      if(avg>0.030 && dprScale>0.62){ dprScale=Math.max(0.62, dprScale-0.14); renderer.setPixelRatio(BASE_DPR*dprScale); }
+      else if(avg<0.017 && dprScale<1){ dprScale=Math.min(1, dprScale+0.08); renderer.setPixelRatio(BASE_DPR*dprScale); }
+      ftAcc=0; ftN=0;
+    }
+  }
+  if(started) update(dt, now);
+  else { grassMat.uniforms.uTime.value=now; renderer.render(scene,camera); }
+}
+loop();
+
+function resize(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.fov = innerHeight>innerWidth ? 82 : 72;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  layoutHand();
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', ()=>setTimeout(resize,220));
+// 兜底：视口尺寸变化（移动端地址栏收起等）
+let lastW=innerWidth, lastH=innerHeight;
+setInterval(()=>{ if(innerWidth!==lastW || innerHeight!==lastH){ lastW=innerWidth; lastH=innerHeight; resize(); } }, 500);
+</script>
+</body>
+</html>
